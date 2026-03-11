@@ -1,4 +1,4 @@
-# YOU MEE Photo Booth Dashboard — Implementation Plan
+# Archivio Photo Booth Dashboard — Implementation Plan
 
 ## Architecture
 - **Frontend**: Next.js 15 + React + Tailwind CSS + shadcn/ui (runs on Mac, served locally)
@@ -24,7 +24,7 @@
 ### Page Structure:
 ```
 ┌─────────────────────────────────────┐
-│  YOU MEE  ·  Photo Booth Dashboard  │ ← Navbar
+│  Archivio  ·  Photo Booth Dashboard  │ ← Navbar
 ├─────────────────────────────────────┤
 │                                     │
 │  ┌──────────┐    ┌──────────────┐   │
@@ -51,7 +51,7 @@
 
 ## Key Components:
 1. **ReceiptPreview** — White paper card showing real-time preview of print output
-2. **LogoDropzone** — Drag & drop for company logo (pre-filled with YOU MEE)
+2. **LogoDropzone** — Drag & drop for company logo (pre-filled with Archivio)
 3. **PhotoDropzone** — Drag & drop OR camera capture button
 4. **MemoInput** — Text area for 1-2 line quote
 5. **QRInput** — URL input for QR code generation
@@ -71,7 +71,7 @@
 
 ## File Structure:
 ```
-/Users/aayushkumar/Desktop/Photobooth-Related/youmee-dashboard/
+/Users/aayushkumar/Desktop/Photobooth-Related/archivio-dashboard/
 ├── src/
 │   ├── app/
 │   │   ├── layout.tsx
@@ -93,7 +93,7 @@
 ├── tailwind.config.ts
 └── ...
 
-/home/monster-pi/youmee-server/
+/home/monster-pi/archivio-server/
 ├── server.py          ← Flask API
 ├── printer.py         ← Print engine (from photobooth_print_all.py)
 ├── uploads/           ← Uploaded images
@@ -102,7 +102,7 @@
 
 ## Flow:
 1. User opens dashboard in browser
-2. Logo is pre-loaded (YOU MEE default), user can replace via drag & drop
+2. Logo is pre-loaded (Archivio default), user can replace via drag & drop
 3. User either drags a photo or clicks "Take Photo" (camera capture)
 4. As images are added, they appear instantly in the receipt preview
 5. User types a memo quote

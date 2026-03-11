@@ -1,0 +1,59 @@
+{
+  "name": "archivio-share",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "deploy:worker": "wrangler deploy --config worker/wrangler.toml",
+    "cleanup": "tsx scripts/cleanup.ts",
+    "seed": "tsx scripts/seed.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.995.0",
+    "@libsql/client": "^0.17.0",
+    "@react-email/components": "^1.0.8",
+    "@react-email/render": "^2.0.4",
+    "@sentry/nextjs": "^10.39.0",
+    "@upstash/qstash": "^2.9.0",
+    "@vercel/blob": "^2.3.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "dotenv": "^17.3.1",
+    "drizzle-orm": "^0.45.1",
+    "html5-qrcode": "^2.3.8",
+    "lucide-react": "^0.575.0",
+    "nanoid": "^5.1.6",
+    "next": "15.5.12",
+    "next-auth": "^5.0.0-beta.30",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "resend": "^6.9.2",
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^3.5.0",
+    "zod": "^4.3.6"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "drizzle-kit": "^0.31.9",
+    "eslint": "^9",
+    "eslint-config-next": "15.5.12",
+    "tailwindcss": "^4",
+    "tsx": "^4.21.0",
+    "typescript": "^5",
+    "vitest": "^3.2.4",
+    "wrangler": "^4.67.0"
+  }
+}

@@ -1,0 +1,937 @@
+#!/usr/bin/env python3
+"""
+ARCHIVIO Photo Booth — Flask API Server v2.1
+Runs on Raspberry Pi. Handles image upload, camera capture, print queue.
+Supports: single photo, grid photos, freestyle positioning, stickers, rounded corners.
+"""
+import os
+import sys
+import time
+import uuid
+import math
+import select
+import threading
+import queue as qmod
+from flask import Flask, request, jsonify, send_from_directory
+from flask_cors import CORS
+from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageOps
+
+# === Config ===
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
+PREVIEW_DIR = os.path.join(BASE_DIR, "previews")
+STICKER_DIR = os.path.join(BASE_DIR, "stickers")
+LP_DEVICE = "/dev/usb/lp0"
+WIDTH = 576
+MARGIN = 0  # full width prints
+
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(PREVIEW_DIR, exist_ok=True)
+os.makedirs(STICKER_DIR, exist_ok=True)
+
+# Copy default logo if exists
+DEFAULT_LOGO = os.path.expanduser("~/archivio_logo.png")
+if os.path.exists(DEFAULT_LOGO) and not os.path.exists(os.path.join(UPLOAD_DIR, "archivio_logo.png")):
+    import shutil
+    shutil.copy2(DEFAULT_LOGO, os.path.join(UPLOAD_DIR, "archivio_logo.png"))
+
+app = Flask(__name__)
+CORS(app)
+
+
+# ==============================
+#  Print Queue
+# ==============================
+print_queue = qmod.Queue()
+print_jobs = {}  # job_id -> {status, message, params}
+jobs_lock = threading.Lock()
+
+
+def print_worker():
+    """Background thread that processes print jobs sequentially."""
+    while True:
+        job_id, params = print_queue.get()
+        with jobs_lock:
+            print_jobs[job_id]["status"] = "printing"
+            print_jobs[job_id]["message"] = "Printing..."
+
+        try:
+            receipt = build_receipt_from_params(params)
+            receipt.save(os.path.join(PREVIEW_DIR, "last_receipt.png"))
+            ok, msg = do_print(receipt)
+            with jobs_lock:
+                print_jobs[job_id]["status"] = "done" if ok else "error"
+                print_jobs[job_id]["message"] = msg
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            with jobs_lock:
+                print_jobs[job_id]["status"] = "error"
+                print_jobs[job_id]["message"] = str(e)
+        finally:
+            print_queue.task_done()
+
+
+worker_thread = threading.Thread(target=print_worker, daemon=True)
+worker_thread.start()
+
+
+# ==============================
+#  Printer Engine
+# ==============================
+
+def write_wait(fd, data, timeout_s=120):
+    total = len(data)
+    sent = 0
+    deadline = time.time() + timeout_s
+    while sent < total:
+        remaining = deadline - time.time()
+        if remaining <= 0:
+            raise TimeoutError(f"Timed out ({sent}/{total})")
+        _, wlist, _ = select.select([], [fd], [], min(remaining, 2.0))
+        if wlist:
+            try:
+                n = os.write(fd, data[sent:])
+                sent += n
+            except BlockingIOError:
+                time.sleep(0.05)
+    return sent
+
+
+def image_to_single_raster(img):
+    w, h = img.size
+    bpl = (w + 7) // 8
+    pixels = img.load()
+    buf = bytearray()
+    buf.extend(b"\x1d\x76\x30\x00")
+    buf.append(bpl & 0xFF)
+    buf.append((bpl >> 8) & 0xFF)
+    buf.append(h & 0xFF)
+    buf.append((h >> 8) & 0xFF)
+    for y in range(h):
+        for bx in range(bpl):
+            byte_val = 0
+            for bit in range(8):
+                x = bx * 8 + bit
+                if x < w and pixels[x, y] == 0:
+                    byte_val |= (128 >> bit)
+            buf.append(byte_val)
+    return bytes(buf)
+
+
+# --- Dithering algorithms ---
+
+def dither_atkinson(gray):
+    w, h = gray.size
+    pixels = list(gray.getdata())
+    grid = [float(p) for p in pixels]
+    kernel = [(1,0,1/8),(2,0,1/8),(-1,1,1/8),(0,1,1/8),(1,1,1/8),(0,2,1/8)]
+    for y in range(h):
+        for x in range(w):
+            idx = y * w + x
+            old = grid[idx]
+            new = 255.0 if old >= 128 else 0.0
+            err = old - new
+            grid[idx] = new
+            for dx, dy, weight in kernel:
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < w and 0 <= ny < h:
+                    grid[ny * w + nx] = max(0, min(255, grid[ny * w + nx] + err * weight))
+    out = Image.new("1", (w, h))
+    for y in range(h):
+        for x in range(w):
+            out.putpixel((x, y), 255 if grid[y * w + x] >= 128 else 0)
+    return out
+
+
+def dither_floyd_steinberg(gray):
+    w, h = gray.size
+    pixels = list(gray.getdata())
+    grid = [float(p) for p in pixels]
+    for y in range(h):
+        for x in range(w):
+            idx = y * w + x
+            old = grid[idx]
+            new = 255.0 if old >= 128 else 0.0
+            err = old - new
+            grid[idx] = new
+            if x + 1 < w:
+                grid[idx + 1] = max(0, min(255, grid[idx + 1] + err * 7/16))
+            if y + 1 < h:
+                if x - 1 >= 0:
+                    grid[(y+1)*w + x-1] = max(0, min(255, grid[(y+1)*w + x-1] + err * 3/16))
+                grid[(y+1)*w + x] = max(0, min(255, grid[(y+1)*w + x] + err * 5/16))
+                if x + 1 < w:
+                    grid[(y+1)*w + x+1] = max(0, min(255, grid[(y+1)*w + x+1] + err * 1/16))
+    out = Image.new("1", (w, h))
+    for y in range(h):
+        for x in range(w):
+            out.putpixel((x, y), 255 if grid[y * w + x] >= 128 else 0)
+    return out
+
+
+def dither_stucki(gray):
+    w, h = gray.size
+    pixels = list(gray.getdata())
+    grid = [float(p) for p in pixels]
+    kernel = [
+        (1,0,8/42),(2,0,4/42),
+        (-2,1,2/42),(-1,1,4/42),(0,1,8/42),(1,1,4/42),(2,1,2/42),
+        (-2,2,1/42),(-1,2,2/42),(0,2,4/42),(1,2,2/42),(2,2,1/42),
+    ]
+    for y in range(h):
+        for x in range(w):
+            idx = y * w + x
+            old = grid[idx]
+            new = 255.0 if old >= 128 else 0.0
+            err = old - new
+            grid[idx] = new
+            for dx, dy, weight in kernel:
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < w and 0 <= ny < h:
+                    grid[ny * w + nx] = max(0, min(255, grid[ny * w + nx] + err * weight))
+    out = Image.new("1", (w, h))
+    for y in range(h):
+        for x in range(w):
+            out.putpixel((x, y), 255 if grid[y * w + x] >= 128 else 0)
+    return out
+
+
+def dither_bayer8(gray):
+    BAYER8 = [
+        [ 0,48,12,60, 3,51,15,63],
+        [32,16,44,28,35,19,47,31],
+        [ 8,56, 4,52,11,59, 7,55],
+        [40,24,36,20,43,27,39,23],
+        [ 2,50,14,62, 1,49,13,61],
+        [34,18,46,30,33,17,45,29],
+        [10,58, 6,54, 9,57, 5,53],
+        [42,26,38,22,41,25,37,21],
+    ]
+    w, h = gray.size
+    pixels = gray.load()
+    out = Image.new("1", (w, h))
+    out_pixels = out.load()
+    for y in range(h):
+        for x in range(w):
+            threshold = (BAYER8[y % 8][x % 8] / 64.0) * 255
+            out_pixels[x, y] = 255 if pixels[x, y] > threshold else 0
+    return out
+
+
+DITHER_MAP = {
+    "atkinson": dither_atkinson,
+    "bayer8": dither_bayer8,
+    "floyd_steinberg": dither_floyd_steinberg,
+    "stucki": dither_stucki,
+}
+
+
+def enhance_for_thermal(gray, contrast=1.4, brightness=1.05, sharpness=1.5):
+    img = ImageEnhance.Contrast(gray).enhance(contrast)
+    img = ImageEnhance.Brightness(img).enhance(brightness)
+    img = ImageEnhance.Sharpness(img).enhance(sharpness)
+    return img
+
+
+def get_font(size, bold=False):
+    paths = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    ]
+    for p in paths:
+        try:
+            return ImageFont.truetype(p, size)
+        except Exception:
+            continue
+    return ImageFont.load_default()
+
+
+def generate_qr(data, box_size=5):
+    import qrcode
+    qr = qrcode.QRCode(version=None, error_correction=qrcode.constants.ERROR_CORRECT_M,
+                        box_size=box_size, border=2)
+    qr.add_data(data)
+    qr.make(fit=True)
+    return qr.make_image(fill_color="black", back_color="white").convert("1")
+
+
+# ==============================
+#  Image Helpers
+# ==============================
+
+def apply_rounded_corners(img, radius=20):
+    """Apply rounded corners to an image. Works with both L and RGBA modes."""
+    if img.mode == "1":
+        img = img.convert("L")
+
+    w, h = img.size
+    mask = Image.new("L", (w, h), 0)
+    draw = ImageDraw.Draw(mask)
+    draw.rounded_rectangle([(0, 0), (w-1, h-1)], radius=radius, fill=255)
+
+    # Where mask is 0 (corners), set to white (255 = white on thermal)
+    result = Image.new("L", (w, h), 255)
+    result.paste(img, (0, 0), mask)
+    return result
+
+
+def get_aspect_ratio_float(ratio_str):
+    """Convert aspect ratio string like '4:3' to float."""
+    mapping = {
+        "1:1": 1.0, "4:3": 4/3, "3:4": 3/4, "4:5": 4/5, "5:4": 5/4,
+        "9:16": 9/16, "16:9": 16/9, "2:3": 2/3, "3:2": 3/2,
+        "1:2": 0.5, "2:1": 2.0,
+    }
+    return mapping.get(ratio_str, None)
+
+
+def create_logo_section(logo_path, width, header_height=64):
+    if logo_path and os.path.exists(logo_path):
+        logo = Image.open(logo_path).convert("L")
+        target_w = int(width * 0.5)
+        lw, lh = logo.size
+        ratio = min(target_w / lw, header_height / lh)
+        new_w = int(lw * ratio)
+        new_h = int(lh * ratio)
+        logo = logo.resize((new_w, new_h), Image.Resampling.LANCZOS)
+        logo = logo.point(lambda x: 255 if x > 128 else 0, mode="1")
+        section = Image.new("1", (width, header_height + 10), 255)
+        section.paste(logo, ((width - new_w) // 2, (header_height - new_h) // 2 + 5))
+        return section
+    return Image.new("1", (width, 20), 255)
+
+
+def create_photo_section_single(photo_path, width, algorithm, aspect_ratio=None, rotation=0):
+    """Create a single photo section with optional aspect ratio crop and rotation."""
+    if not photo_path or not os.path.exists(photo_path):
+        print(f"[Build] No photo file! path={photo_path}")
+        return Image.new("1", (width, 10), 255)
+
+    photo = Image.open(photo_path).convert("L")
+
+    # Apply rotation
+    if rotation and rotation != 0:
+        photo = photo.rotate(-rotation, expand=True, fillcolor=255)
+
+    pw, ph = photo.size
+
+    # Apply aspect ratio crop
+    ar = get_aspect_ratio_float(aspect_ratio) if aspect_ratio else None
+    if ar:
+        current_ar = pw / ph
+        if current_ar > ar:
+            new_w = int(ph * ar)
+            offset = (pw - new_w) // 2
+            photo = photo.crop((offset, 0, offset + new_w, ph))
+        elif current_ar < ar:
+            new_h = int(pw / ar)
+            offset = (ph - new_h) // 2
+            photo = photo.crop((0, offset, pw, offset + new_h))
+        pw, ph = photo.size
+
+    # Scale to full paper width
+    ratio = width / pw
+    photo_height = int(ph * ratio)
+    photo = photo.resize((width, photo_height), Image.Resampling.LANCZOS)
+
+    # Enhance and dither
+    photo = enhance_for_thermal(photo)
+    dither_fn = DITHER_MAP.get(algorithm, dither_atkinson)
+    photo_dithered = dither_fn(photo)
+
+    # Apply rounded corners
+    photo_gray = photo_dithered.convert("L")
+    photo_rounded = apply_rounded_corners(photo_gray, radius=24)
+    photo_1bit = photo_rounded.point(lambda x: 255 if x > 128 else 0, mode="1")
+
+    section = Image.new("1", (width, photo_height + 10), 255)
+    section.paste(photo_1bit, (0, 5))
+    print(f"[Build] Single photo section: {width}x{photo_height}")
+    return section
+
+
+def create_photo_section_grid(grid_photos, width, grid_layout, canvas_mode, algorithm, aspect_ratio=None):
+    """Create a grid photo section from multiple images.
+
+    grid_photos: list of dicts with {filename, x?, y?, w?, h?}
+    grid_layout: layout key like '2-side', '4-grid', etc.
+    canvas_mode: boolean, if True use freestyle positions from x/y/w/h
+    """
+    if not grid_photos:
+        print("[Build] No grid photos!")
+        return Image.new("1", (width, 10), 255)
+
+    # Determine photo section height based on aspect ratio
+    ar = get_aspect_ratio_float(aspect_ratio) if aspect_ratio else None
+    if ar:
+        photo_height = int(width / ar)
+    else:
+        photo_height = int(width * 5 / 4)  # default 4:5 ratio
+
+    # Create the composite canvas (grayscale)
+    canvas = Image.new("L", (width, photo_height), 255)
+
+    # Layout definitions matching frontend grid-layouts.ts
+    LAYOUTS = {
+        "1-full": [{"x": 0, "y": 0, "w": 100, "h": 100}],
+        "2-side": [
+            {"x": 0, "y": 0, "w": 50, "h": 100},
+            {"x": 50, "y": 0, "w": 50, "h": 100},
+        ],
+        "2-stack": [
+            {"x": 0, "y": 0, "w": 100, "h": 50},
+            {"x": 0, "y": 50, "w": 100, "h": 50},
+        ],
+        "3-left": [
+            {"x": 0, "y": 0, "w": 60, "h": 100},
+            {"x": 60, "y": 0, "w": 40, "h": 50},
+            {"x": 60, "y": 50, "w": 40, "h": 50},
+        ],
+        "3-top": [
+            {"x": 0, "y": 0, "w": 100, "h": 60},
+            {"x": 0, "y": 60, "w": 50, "h": 40},
+            {"x": 50, "y": 60, "w": 50, "h": 40},
+        ],
+        "3-cols": [
+            {"x": 0, "y": 0, "w": 33.33, "h": 100},
+            {"x": 33.33, "y": 0, "w": 33.33, "h": 100},
+            {"x": 66.66, "y": 0, "w": 33.34, "h": 100},
+        ],
+        "4-grid": [
+            {"x": 0, "y": 0, "w": 50, "h": 50},
+            {"x": 50, "y": 0, "w": 50, "h": 50},
+            {"x": 0, "y": 50, "w": 50, "h": 50},
+            {"x": 50, "y": 50, "w": 50, "h": 50},
+        ],
+        "4-left": [
+            {"x": 0, "y": 0, "w": 60, "h": 100},
+            {"x": 60, "y": 0, "w": 40, "h": 33.33},
+            {"x": 60, "y": 33.33, "w": 40, "h": 33.33},
+            {"x": 60, "y": 66.66, "w": 40, "h": 33.34},
+        ],
+        "4-top": [
+            {"x": 0, "y": 0, "w": 100, "h": 60},
+            {"x": 0, "y": 60, "w": 33.33, "h": 40},
+            {"x": 33.33, "y": 60, "w": 33.33, "h": 40},
+            {"x": 66.66, "y": 60, "w": 33.34, "h": 40},
+        ],
+        "5-left": [
+            {"x": 0, "y": 0, "w": 60, "h": 50},
+            {"x": 60, "y": 0, "w": 40, "h": 50},
+            {"x": 0, "y": 50, "w": 33.33, "h": 50},
+            {"x": 33.33, "y": 50, "w": 33.33, "h": 50},
+            {"x": 66.66, "y": 50, "w": 33.34, "h": 50},
+        ],
+        "5-grid": [
+            {"x": 0, "y": 0, "w": 50, "h": 50},
+            {"x": 50, "y": 0, "w": 50, "h": 50},
+            {"x": 0, "y": 50, "w": 33.33, "h": 50},
+            {"x": 33.33, "y": 50, "w": 33.33, "h": 50},
+            {"x": 66.66, "y": 50, "w": 33.34, "h": 50},
+        ],
+        "6-grid": [
+            {"x": 0, "y": 0, "w": 33.33, "h": 50},
+            {"x": 33.33, "y": 0, "w": 33.33, "h": 50},
+            {"x": 66.66, "y": 0, "w": 33.34, "h": 50},
+            {"x": 0, "y": 50, "w": 33.33, "h": 50},
+            {"x": 33.33, "y": 50, "w": 33.33, "h": 50},
+            {"x": 66.66, "y": 50, "w": 33.34, "h": 50},
+        ],
+        "6-mosaic": [
+            {"x": 0, "y": 0, "w": 66.66, "h": 50},
+            {"x": 66.66, "y": 0, "w": 33.34, "h": 25},
+            {"x": 66.66, "y": 25, "w": 33.34, "h": 25},
+            {"x": 0, "y": 50, "w": 33.33, "h": 25},
+            {"x": 0, "y": 75, "w": 33.33, "h": 25},
+            {"x": 33.33, "y": 50, "w": 66.67, "h": 50},
+        ],
+    }
+
+    gap = 4  # pixel gap between images
+
+    for i, gp in enumerate(grid_photos):
+        # Handle both dict and string formats
+        if isinstance(gp, str):
+            gp = {"filename": gp}
+        filename = gp.get("filename", "")
+
+        photo_path = os.path.join(UPLOAD_DIR, filename)
+        if not os.path.exists(photo_path):
+            print(f"[Grid] Photo not found: {photo_path}")
+            continue
+
+        img = Image.open(photo_path).convert("L")
+
+        if canvas_mode:
+            # Freestyle mode: use x, y, w, h percentages
+            cx = gp.get("x", 10) or 10
+            cy = gp.get("y", 10) or 10
+            cw = gp.get("w", 55) or 55
+            ch = gp.get("h", 55) or 55
+
+            px_x = int(cx / 100 * width)
+            px_y = int(cy / 100 * photo_height)
+            px_w = int(cw / 100 * width)
+            px_h = int(ch / 100 * photo_height)
+        else:
+            # Layout mode
+            layout_cells = LAYOUTS.get(grid_layout, LAYOUTS.get("1-full"))
+            if i >= len(layout_cells):
+                continue
+            cell = layout_cells[i]
+            px_x = int(cell["x"] / 100 * width) + gap
+            px_y = int(cell["y"] / 100 * photo_height) + gap
+            px_w = int(cell["w"] / 100 * width) - gap * 2
+            px_h = int(cell["h"] / 100 * photo_height) - gap * 2
+
+        if px_w <= 0 or px_h <= 0:
+            continue
+
+        # Resize image to fill the cell (cover mode)
+        iw, ih = img.size
+        scale = max(px_w / iw, px_h / ih)
+        new_w = int(iw * scale)
+        new_h = int(ih * scale)
+        img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+
+        # Center crop to cell size
+        left = (new_w - px_w) // 2
+        top = (new_h - px_h) // 2
+        img = img.crop((left, top, left + px_w, top + px_h))
+
+        # Paste into canvas
+        paste_x = max(0, min(px_x, width - px_w))
+        paste_y = max(0, min(px_y, photo_height - px_h))
+        canvas.paste(img, (paste_x, paste_y))
+        print(f"[Grid] Photo {i}: ({px_x},{px_y}) {px_w}x{px_h}")
+
+    # Enhance and dither the composite
+    canvas = enhance_for_thermal(canvas)
+    dither_fn = DITHER_MAP.get(algorithm, dither_atkinson)
+    canvas_dithered = dither_fn(canvas)
+
+    # Apply rounded corners
+    canvas_gray = canvas_dithered.convert("L")
+    canvas_rounded = apply_rounded_corners(canvas_gray, radius=24)
+    canvas_1bit = canvas_rounded.point(lambda x: 255 if x > 128 else 0, mode="1")
+
+    section = Image.new("1", (width, photo_height + 10), 255)
+    section.paste(canvas_1bit, (0, 5))
+    print(f"[Build] Grid photo section: {width}x{photo_height} ({len(grid_photos)} photos, layout={grid_layout}, freestyle={canvas_mode})")
+    return section
+
+
+def composite_stickers(receipt, stickers, width):
+    """Composite sticker images onto the receipt.
+
+    stickers: list of {filename, x, y, width, height} where positions are percentages
+    receipt: PIL Image (mode "1" or "L")
+    """
+    if not stickers:
+        return receipt
+
+    receipt_w, receipt_h = receipt.size
+    result = receipt.convert("L")
+
+    for sticker_data in stickers:
+        filename = sticker_data.get("filename", "")
+        sx = sticker_data.get("x", 0) / 100 * receipt_w
+        sy = sticker_data.get("y", 0) / 100 * receipt_h
+        sw = sticker_data.get("width", 10) / 100 * receipt_w
+        sh = sticker_data.get("height", 10) / 100 * receipt_h
+
+        # Look for sticker in stickers dir, then uploads dir
+        sticker_path = os.path.join(STICKER_DIR, filename)
+        if not os.path.exists(sticker_path):
+            sticker_path = os.path.join(UPLOAD_DIR, filename)
+        if not os.path.exists(sticker_path):
+            print(f"[Sticker] Not found: {filename}")
+            continue
+
+        try:
+            sticker_img = Image.open(sticker_path)
+
+            # If sticker has alpha channel, use it as mask
+            if sticker_img.mode in ("RGBA", "LA", "PA"):
+                sticker_rgba = sticker_img.convert("RGBA")
+                sticker_resized = sticker_rgba.resize((max(1, int(sw)), max(1, int(sh))), Image.Resampling.LANCZOS)
+
+                # Convert sticker to grayscale for thermal
+                sticker_gray = sticker_resized.convert("L")
+
+                # Extract and threshold alpha mask
+                alpha = sticker_resized.split()[3]
+                alpha_mask = alpha.point(lambda p: 255 if p > 128 else 0, mode="L")
+
+                paste_x = max(0, int(sx))
+                paste_y = max(0, int(sy))
+                result.paste(sticker_gray, (paste_x, paste_y), alpha_mask)
+            else:
+                sticker_gray = sticker_img.convert("L")
+                sticker_resized = sticker_gray.resize((max(1, int(sw)), max(1, int(sh))), Image.Resampling.LANCZOS)
+                paste_x = max(0, int(sx))
+                paste_y = max(0, int(sy))
+                result.paste(sticker_resized, (paste_x, paste_y))
+
+            print(f"[Sticker] Composited {filename} at ({int(sx)},{int(sy)}) {int(sw)}x{int(sh)}")
+        except Exception as e:
+            print(f"[Sticker] Error compositing {filename}: {e}")
+            continue
+
+    return result.point(lambda x: 255 if x > 128 else 0, mode="1")
+
+
+def create_memo_section(memo_text, width, font_size=20):
+    font = get_font(font_size)
+    section_h = max(60, font_size * 5)
+    section = Image.new("1", (width, section_h), 255)
+    draw = ImageDraw.Draw(section)
+    quoted = f'"{memo_text}"'
+    lines, current = [], ""
+    for word in quoted.split():
+        test = f"{current} {word}" if current else word
+        bbox = draw.textbbox((0, 0), test, font=font)
+        if bbox[2] - bbox[0] > width - 60:
+            lines.append(current)
+            current = word
+        else:
+            current = test
+    if current:
+        lines.append(current)
+    y = 8
+    for line in lines:
+        bbox = draw.textbbox((0, 0), line, font=font)
+        tw = bbox[2] - bbox[0]
+        draw.text(((width - tw) // 2, y), line, fill=0, font=font)
+        y += bbox[3] - bbox[1] + 4
+    return section.crop((0, 0, width, min(y + 10, section_h)))
+
+
+def create_stamp_section(stamp_text, width):
+    font = get_font(12)
+    section = Image.new("1", (width, 25), 255)
+    draw = ImageDraw.Draw(section)
+    bbox = draw.textbbox((0, 0), stamp_text, font=font)
+    tw = bbox[2] - bbox[0]
+    draw.text(((width - tw) // 2, 5), stamp_text, fill=0, font=font)
+    return section
+
+
+def create_separator(width):
+    section = Image.new("1", (width, 15), 255)
+    draw = ImageDraw.Draw(section)
+    for x in range(20, width - 20, 6):
+        draw.point((x, 7), fill=0)
+        draw.point((x + 1, 7), fill=0)
+    return section
+
+
+def build_receipt_from_params(params):
+    """Build receipt from dashboard parameters.
+    Supports: single photo, grid photos (layout + freestyle), stickers, rounded corners.
+    """
+    photo_filename = params.get("photo", "")
+    grid_photos = params.get("grid_photos", [])
+    grid_layout = params.get("grid_layout", "2-side")
+    grid_canvas_mode = params.get("grid_canvas_mode", False)
+    memo = params.get("memo", "")
+    qr_url = params.get("qr_url", "https://archivio.app")
+    algorithm = params.get("algorithm", "atkinson")
+    logo_filename = params.get("logo", "")
+    header_height = params.get("header_height", 64)
+    section_order = params.get("section_order", ["logo", "photo", "memo", "qr", "stamp"])
+    stamp_text = params.get("stamp_text", "")
+    memo_font_size = params.get("memo_font_size", 14)
+    stickers = params.get("stickers", [])
+    photo_aspect_ratio = params.get("photo_aspect_ratio", "free")
+    photo_rotation = params.get("photo_rotation", 0)
+    width = WIDTH
+
+    print(f"[Build] photo={photo_filename!r}, grid_photos={len(grid_photos)}, logo={logo_filename!r}")
+    print(f"[Build] memo={memo!r}, qr={qr_url!r}, algo={algorithm}, stickers={len(stickers)}")
+    print(f"[Build] aspect={photo_aspect_ratio}, rotation={photo_rotation}, sections={section_order}")
+
+    # Resolve paths
+    logo_path = os.path.join(UPLOAD_DIR, logo_filename) if logo_filename else None
+    if logo_path and not os.path.exists(logo_path):
+        print(f"[Build] Logo not found: {logo_path}")
+        logo_path = None
+
+    photo_path = os.path.join(UPLOAD_DIR, photo_filename) if photo_filename else None
+    if photo_path and not os.path.exists(photo_path):
+        print(f"[Build] Photo not found: {photo_path}")
+        photo_path = None
+
+    sep = create_separator(width)
+
+    # Build sections dict
+    section_images = {}
+
+    # Logo
+    section_images["logo"] = create_logo_section(logo_path, width, header_height)
+
+    # Photo section — single or grid
+    if grid_photos and len(grid_photos) > 0:
+        section_images["photo"] = create_photo_section_grid(
+            grid_photos, width, grid_layout, grid_canvas_mode, algorithm, photo_aspect_ratio
+        )
+    elif photo_path:
+        section_images["photo"] = create_photo_section_single(
+            photo_path, width, algorithm, photo_aspect_ratio, photo_rotation
+        )
+    else:
+        section_images["photo"] = Image.new("1", (width, 10), 255)
+        print("[Build] No photo!")
+
+    # Memo
+    if memo:
+        print_font_size = max(12, int(memo_font_size * 1.4))
+        section_images["memo"] = create_memo_section(memo, width, print_font_size)
+    else:
+        section_images["memo"] = Image.new("1", (width, 5), 255)
+
+    # QR
+    qr = generate_qr(qr_url, box_size=5)
+    qr_w, qr_h = qr.size
+    qr_section = Image.new("1", (width, qr_h + 30), 255)
+    qr_section.paste(qr, ((width - qr_w) // 2, 10))
+    draw_qr = ImageDraw.Draw(qr_section)
+    scan_font = get_font(14)
+    scan_text = "scan for your digital copy"
+    bbox = draw_qr.textbbox((0, 0), scan_text, font=scan_font)
+    draw_qr.text(((width - (bbox[2] - bbox[0])) // 2, qr_h + 12), scan_text, fill=0, font=scan_font)
+    section_images["qr"] = qr_section
+
+    # Stamp
+    if stamp_text:
+        section_images["stamp"] = create_stamp_section(stamp_text, width)
+    else:
+        section_images["stamp"] = Image.new("1", (width, 1), 255)
+
+    # Compose in section_order
+    parts = []
+    for section_id in section_order:
+        img = section_images.get(section_id)
+        if img and img.size[1] > 1:
+            parts.append(img)
+            parts.append(sep.copy())
+
+    # Bottom padding
+    parts.append(Image.new("1", (width, 20), 255))
+
+    total_h = sum(p.size[1] for p in parts)
+    receipt = Image.new("1", (width, total_h), 255)
+    y = 0
+    for p in parts:
+        receipt.paste(p, (0, y))
+        y += p.size[1]
+
+    # Composite stickers on top of the full receipt
+    if stickers:
+        receipt = composite_stickers(receipt, stickers, width)
+
+    return receipt
+
+
+def do_print(receipt):
+    """Send a receipt image to the thermal printer."""
+    if not os.path.exists(LP_DEVICE):
+        return False, f"{LP_DEVICE} not found"
+    fd = os.open(LP_DEVICE, os.O_WRONLY | os.O_NONBLOCK)
+    try:
+        write_wait(fd, b"\x1b\x40")
+        time.sleep(0.3)
+        raster = image_to_single_raster(receipt)
+        write_wait(fd, raster, timeout_s=240)
+        time.sleep(1)
+        write_wait(fd, b"\x0a\x0a\x0a")
+        time.sleep(0.3)
+        write_wait(fd, b"\x1d\x56\x00")
+        time.sleep(0.5)
+        return True, "Printed successfully"
+    except Exception as e:
+        return False, str(e)
+    finally:
+        os.close(fd)
+
+
+# ==============================
+#  Camera
+# ==============================
+
+def check_camera():
+    try:
+        from picamera2 import Picamera2
+        cams = Picamera2.global_camera_info()
+        return len(cams) > 0
+    except Exception:
+        return False
+
+
+def capture_from_camera():
+    from picamera2 import Picamera2
+    cam = Picamera2()
+    config = cam.create_still_configuration()
+    cam.configure(config)
+    cam.start()
+    time.sleep(2)
+    filename = f"capture_{uuid.uuid4().hex[:8]}.jpg"
+    filepath = os.path.join(UPLOAD_DIR, filename)
+    cam.capture_file(filepath)
+    cam.stop()
+    cam.close()
+    return filename
+
+
+# ==============================
+#  API Routes
+# ==============================
+
+@app.route("/api/health")
+def health():
+    printer_ok = os.path.exists(LP_DEVICE)
+    camera_ok = check_camera()
+    return jsonify({"status": "ok", "camera": camera_ok, "printer": printer_ok})
+
+
+@app.route("/api/upload/logo", methods=["POST"])
+def upload_logo():
+    if "file" not in request.files:
+        return jsonify({"error": "No file"}), 400
+    f = request.files["file"]
+    ext = os.path.splitext(f.filename or "logo.png")[1].lower() or ".png"
+    filename = f"logo_{uuid.uuid4().hex[:8]}{ext}"
+    filepath = os.path.join(UPLOAD_DIR, filename)
+    f.save(filepath)
+    return jsonify({"url": f"/api/images/{filename}", "filename": filename})
+
+
+@app.route("/api/upload/photo", methods=["POST"])
+def upload_photo():
+    if "file" not in request.files:
+        return jsonify({"error": "No file"}), 400
+    f = request.files["file"]
+    ext = os.path.splitext(f.filename or "photo.jpg")[1].lower() or ".jpg"
+    filename = f"photo_{uuid.uuid4().hex[:8]}{ext}"
+    filepath = os.path.join(UPLOAD_DIR, filename)
+    f.save(filepath)
+    return jsonify({"url": f"/api/images/{filename}", "filename": filename})
+
+
+@app.route("/api/upload/sticker", methods=["POST"])
+def upload_sticker():
+    """Upload a sticker image (PNG/SVG/WebP with transparency)."""
+    if "file" not in request.files:
+        return jsonify({"error": "No file"}), 400
+    f = request.files["file"]
+    ext = os.path.splitext(f.filename or "sticker.png")[1].lower() or ".png"
+    filename = f"sticker_{uuid.uuid4().hex[:8]}{ext}"
+    filepath = os.path.join(STICKER_DIR, filename)
+    f.save(filepath)
+    return jsonify({"url": f"/api/stickers/{filename}", "filename": filename})
+
+
+@app.route("/api/camera/status")
+def camera_status():
+    available = check_camera()
+    return jsonify({"available": available, "info": "Pi Camera" if available else "No camera detected"})
+
+
+@app.route("/api/camera/capture", methods=["POST"])
+def camera_capture():
+    if not check_camera():
+        return jsonify({"error": "No camera available"}), 503
+    try:
+        filename = capture_from_camera()
+        return jsonify({"url": f"/api/images/{filename}", "filename": filename})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# --- Print Queue endpoints ---
+
+@app.route("/api/print/queue", methods=["POST"])
+def enqueue_print():
+    """Add a print job to the queue. Returns immediately."""
+    data = request.get_json()
+    job_id = data.get("job_id", f"job_{uuid.uuid4().hex[:8]}")
+
+    with jobs_lock:
+        print_jobs[job_id] = {"status": "pending", "message": "Queued", "params": data}
+
+    print_queue.put((job_id, data))
+    print(f"[Queue] Job {job_id} enqueued ({print_queue.qsize()} in queue)")
+    return jsonify({"job_id": job_id, "status": "pending"})
+
+
+@app.route("/api/print/status/<job_id>")
+def get_print_status(job_id):
+    with jobs_lock:
+        job = print_jobs.get(job_id)
+    if not job:
+        return jsonify({"status": "unknown", "message": "Job not found"}), 404
+    return jsonify({"status": job["status"], "message": job["message"]})
+
+
+@app.route("/api/print/queue", methods=["GET"])
+def list_print_queue():
+    with jobs_lock:
+        jobs = [{"id": k, "status": v["status"], "message": v["message"]}
+                for k, v in print_jobs.items()]
+    return jsonify({"jobs": jobs})
+
+
+@app.route("/api/print/queue/<job_id>", methods=["DELETE"])
+def delete_print_job(job_id):
+    """Cancel/remove a print job."""
+    with jobs_lock:
+        if job_id in print_jobs:
+            if print_jobs[job_id]["status"] == "printing":
+                return jsonify({"error": "Cannot cancel a job that is currently printing"}), 409
+            del print_jobs[job_id]
+            return jsonify({"status": "removed"})
+    return jsonify({"error": "Job not found"}), 404
+
+
+# Keep old /api/print for backwards compat
+@app.route("/api/print", methods=["POST"])
+def print_receipt_sync():
+    data = request.get_json()
+    try:
+        receipt = build_receipt_from_params(data)
+        receipt.save(os.path.join(PREVIEW_DIR, "last_receipt.png"))
+        ok, msg = do_print(receipt)
+        return jsonify({"success": ok, "message": msg})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route("/api/images/<filename>")
+def serve_image(filename):
+    if os.path.exists(os.path.join(UPLOAD_DIR, filename)):
+        return send_from_directory(UPLOAD_DIR, filename)
+    home = os.path.expanduser("~")
+    if os.path.exists(os.path.join(home, filename)):
+        return send_from_directory(home, filename)
+    return jsonify({"error": "Not found"}), 404
+
+
+@app.route("/api/stickers/<filename>")
+def serve_sticker(filename):
+    if os.path.exists(os.path.join(STICKER_DIR, filename)):
+        return send_from_directory(STICKER_DIR, filename)
+    return jsonify({"error": "Not found"}), 404
+
+
+if __name__ == "__main__":
+    print("=" * 50)
+    print("  ARCHIVIO Photo Booth Server v2.1")
+    print(f"  Uploads:  {UPLOAD_DIR}")
+    print(f"  Stickers: {STICKER_DIR}")
+    print(f"  Printer:  {LP_DEVICE} ({'found' if os.path.exists(LP_DEVICE) else 'NOT FOUND'})")
+    print(f"  Camera:   {'detected' if check_camera() else 'not detected'}")
+    print("  Print queue: background worker started")
+    print("  Features: grid photos, stickers, rounded corners")
+    print("=" * 50)
+    app.run(host="0.0.0.0", port=5000, debug=False)

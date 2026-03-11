@@ -1,0 +1,101 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ─── Korean Beige Aesthetic — Platform ─── */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-destructive: var(--destructive);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --font-sans: var(--font-sans-override, "Montserrat"), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono-override, "Inconsolata"), ui-monospace, monospace;
+}
+
+:root {
+  --background: #faf8f5;
+  --foreground: #2c2418;
+  --muted: #f0ece5;
+  --muted-foreground: #8c7e6a;
+  --border: #e8e2d8;
+  --input: #e8e2d8;
+  --primary: #c49a5c;
+  --primary-foreground: #fefdfb;
+  --destructive: #c45c5c;
+  --accent: #f0ece5;
+  --accent-foreground: #2c2418;
+  --card: #fefdfb;
+  --card-foreground: #2c2418;
+  --ring: #c49a5c;
+}
+
+.dark {
+  --background: #1a1714;
+  --foreground: #e8e2d8;
+  --muted: #2a261f;
+  --muted-foreground: #8c7e6a;
+  --border: #352f27;
+  --input: #352f27;
+  --primary: #d4a864;
+  --primary-foreground: #1a1714;
+  --destructive: #d46a6a;
+  --accent: #2a261f;
+  --accent-foreground: #e8e2d8;
+  --card: #211e19;
+  --card-foreground: #e8e2d8;
+  --ring: #d4a864;
+}
+
+/* ─── Body transition for theme changes ─── */
+body {
+  transition: background-color 300ms ease-in-out, color 300ms ease-in-out;
+}
+
+/* ─── Pulsing dot loader ─── */
+@keyframes pulse-dot {
+  0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1); }
+}
+
+.loader-dots {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+}
+.loader-dots span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: oklch(0.70 0.09 65);
+  animation: pulse-dot 1.2s ease-in-out infinite;
+}
+.loader-dots span:nth-child(2) { animation-delay: 0.15s; }
+.loader-dots span:nth-child(3) { animation-delay: 0.3s; }
+
+/* ─── Shimmer skeleton ─── */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    oklch(0.94 0.01 75) 25%,
+    oklch(0.96 0.008 80) 50%,
+    oklch(0.94 0.01 75) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+}

@@ -1,0 +1,16 @@
+
+> archivio-platform@0.1.0 dev
+> next dev --port 3001
+
+   ▲ Next.js 15.5.12
+   - Local:        http://localhost:3001
+   - Network:      http://192.168.0.100:3001
+   - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 2.5s
+ ✓ Compiled /middleware in 314ms (165 modules)
+ ○ Compiling / ...
+ ✓ Compiled / in 1225ms (731 modules)
+ GET / 200 in 58ms
+[?25h

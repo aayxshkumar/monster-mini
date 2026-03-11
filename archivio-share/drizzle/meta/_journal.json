@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1771690269373,
+      "tag": "0000_messy_captain_stacy",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1771690950436,
+      "tag": "0001_nappy_famine",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1772798402287,
+      "tag": "0002_smooth_swarm",
+      "breakpoints": true
+    }
+  ]
+}

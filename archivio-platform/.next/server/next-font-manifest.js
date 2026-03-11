@@ -1,0 +1,1 @@
+self.__NEXT_FONT_MANIFEST='{"pages":{},"app":{"/Users/monster/Downloads/Photobooth-Related/archivio-platform/src/app/layout":["static/media/d8c14dc5fcaf3a63-s.p.woff2","static/media/904be59b21bd51cb-s.p.woff2"]},"appUsingSizeAdjust":true,"pagesUsingSizeAdjust":false}';

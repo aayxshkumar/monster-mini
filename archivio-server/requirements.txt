@@ -1,0 +1,7 @@
+flask
+flask-cors
+Pillow
+qrcode[pil]
+gunicorn
+# Pi camera (Raspberry Pi only; install on Pi: pip install picamera2)
+picamera2

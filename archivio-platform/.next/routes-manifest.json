@@ -1,0 +1,141 @@
+{
+  "version": 3,
+  "pages404": true,
+  "caseSensitive": false,
+  "basePath": "",
+  "redirects": [
+    {
+      "source": "/:path+/",
+      "destination": "/:path+",
+      "internal": true,
+      "statusCode": 308,
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$"
+    }
+  ],
+  "headers": [],
+  "rewrites": {
+    "beforeFiles": [],
+    "afterFiles": [],
+    "fallback": []
+  },
+  "dynamicRoutes": [
+    {
+      "page": "/admin/cafes/[id]",
+      "regex": "^/admin/cafes/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/admin/cafes/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/cafes/[id]",
+      "regex": "^/api/cafes/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/cafes/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/cafes/[id]/members",
+      "regex": "^/api/cafes/([^/]+?)/members(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/cafes/(?<nxtPid>[^/]+?)/members(?:/)?$"
+    },
+    {
+      "page": "/api/cafes/[id]/members/[memberId]",
+      "regex": "^/api/cafes/([^/]+?)/members/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid",
+        "nxtPmemberId": "nxtPmemberId"
+      },
+      "namedRegex": "^/api/cafes/(?<nxtPid>[^/]+?)/members/(?<nxtPmemberId>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/config/[cafeId]",
+      "regex": "^/api/config/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPcafeId": "nxtPcafeId"
+      },
+      "namedRegex": "^/api/config/(?<nxtPcafeId>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/templates/[id]",
+      "regex": "^/api/templates/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/templates/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/booth/[slug]",
+      "regex": "^/booth/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPslug": "nxtPslug"
+      },
+      "namedRegex": "^/booth/(?<nxtPslug>[^/]+?)(?:/)?$"
+    }
+  ],
+  "staticRoutes": [
+    {
+      "page": "/",
+      "regex": "^/(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/(?:/)?$"
+    },
+    {
+      "page": "/_not-found",
+      "regex": "^/_not\\-found(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_not\\-found(?:/)?$"
+    },
+    {
+      "page": "/admin",
+      "regex": "^/admin(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin(?:/)?$"
+    },
+    {
+      "page": "/admin/audit",
+      "regex": "^/admin/audit(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/audit(?:/)?$"
+    },
+    {
+      "page": "/admin/cafes",
+      "regex": "^/admin/cafes(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/cafes(?:/)?$"
+    },
+    {
+      "page": "/admin/settings",
+      "regex": "^/admin/settings(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/settings(?:/)?$"
+    },
+    {
+      "page": "/login",
+      "regex": "^/login(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/login(?:/)?$"
+    }
+  ],
+  "dataRoutes": [],
+  "rsc": {
+    "header": "rsc",
+    "varyHeader": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch",
+    "prefetchHeader": "next-router-prefetch",
+    "didPostponeHeader": "x-nextjs-postponed",
+    "contentTypeHeader": "text/x-component",
+    "suffix": ".rsc",
+    "prefetchSuffix": ".prefetch.rsc",
+    "prefetchSegmentHeader": "next-router-segment-prefetch",
+    "prefetchSegmentSuffix": ".segment.rsc",
+    "prefetchSegmentDirSuffix": ".segments"
+  },
+  "rewriteHeaders": {
+    "pathHeader": "x-nextjs-rewritten-path",
+    "queryHeader": "x-nextjs-rewritten-query"
+  }
+}

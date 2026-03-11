@@ -1,0 +1,28 @@
+# ARCHIVIO Dashboard — systemd unit (runs on Raspberry Pi)
+# Install: sudo cp archivio-dashboard.service /etc/systemd/system/
+#         sudo systemctl daemon-reload
+#         sudo systemctl enable archivio-dashboard
+#         sudo systemctl start archivio-dashboard
+# Logs:   journalctl -u archivio-dashboard -f
+
+[Unit]
+Description=ARCHIVIO Photo Booth Dashboard (Next.js)
+After=network.target archivio-server.service
+Wants=archivio-server.service
+
+[Service]
+Type=simple
+User=monster-pi
+Group=monster-pi
+WorkingDirectory=/home/monster-pi/archivio-dashboard
+Environment=PORT=3000
+Environment=HOSTNAME=0.0.0.0
+Environment=NEXT_PUBLIC_PI_URL=http://localhost:5000
+ExecStart=/usr/bin/node .next/standalone/server.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Archivio — Filter Test Print</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f5f0eb;
+      color: #2a2218;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      font-size: 24px;
+      margin-bottom: 8px;
+      color: #c4956a;
+    }
+    .subtitle {
+      text-align: center;
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 20px;
+    }
+    .server-config {
+      max-width: 600px;
+      margin: 0 auto 24px;
+      background: white;
+      border-radius: 16px;
+      padding: 16px;
+      border: 1px solid #e8e0d8;
+    }
+    .server-config label { font-size: 13px; font-weight: 600; }
+    .server-config input {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      margin-top: 6px;
+      font-size: 14px;
+    }
+    .server-config .status {
+      margin-top: 8px;
+      font-size: 12px;
+      color: #888;
+    }
+    .server-config .status.ok { color: #c4956a; }
+    .server-config .status.err { color: #d44; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 20px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    .card {
+      background: white;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid #e8e0d8;
+      transition: box-shadow 0.2s;
+    }
+    .card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+    .card img {
+      width: 100%;
+      display: block;
+    }
+    .card-footer {
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .card-num {
+      font-size: 20px;
+      font-weight: 800;
+      font-family: monospace;
+      color: #c4956a;
+    }
+    .card-label {
+      flex: 1;
+      font-size: 11px;
+      color: #888;
+    }
+    .btn-print {
+      padding: 8px 20px;
+      background: linear-gradient(135deg, #c4956a, #b8855c, #a06b3a);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-print:hover { filter: brightness(1.1); transform: scale(1.02); }
+    .btn-print:active { transform: scale(0.98); }
+    .btn-print:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .btn-print.success { background: #6a6; }
+    .btn-print.error { background: #d44; }
+    .btn-all {
+      display: block;
+      max-width: 400px;
+      margin: 0 auto 24px;
+      padding: 14px 28px;
+      background: linear-gradient(135deg, #c4956a, #b8855c, #a06b3a);
+      color: white;
+      border: none;
+      border-radius: 14px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      width: 100%;
+      transition: all 0.15s;
+    }
+    .btn-all:hover { filter: brightness(1.1); transform: scale(1.01); }
+    .btn-all:active { transform: scale(0.99); }
+  </style>
+</head>
+<body>
+  <h1>Filter Test Print</h1>
+  <p class="subtitle">12 Best Combinations — 576px Thermal Ready</p>
+
+  <div class="server-config">
+    <label>Pi Server Address</label>
+    <input id="serverUrl" type="text" value="http://archivio.local:5000" placeholder="http://192.168.x.x:5000" />
+    <div id="serverStatus" class="status">Enter Pi server address and click Test</div>
+    <button onclick="testConnection()" style="margin-top:8px;padding:6px 16px;border-radius:8px;border:1px solid #ddd;cursor:pointer;font-size:12px">Test Connection</button>
+  </div>
+
+  <button class="btn-all" onclick="printAll()">Print All 12 (Sequentially)</button>
+
+  <div class="grid" id="grid"></div>
+
+  <script>
+    const COMBOS = [
+      { num: 1,  file: "print_01.png", label: "Standard BW - Stucki - Medium" },
+      { num: 2,  file: "print_02.png", label: "Standard BW - Floyd-Steinberg - Medium" },
+      { num: 3,  file: "print_03.png", label: "Standard BW - Atkinson - Medium" },
+      { num: 4,  file: "print_04.png", label: "Warm Sepia - Stucki - Medium" },
+      { num: 5,  file: "print_05.png", label: "Warm Sepia - Atkinson - Medium" },
+      { num: 6,  file: "print_06.png", label: "Warm Sepia - Floyd-Steinberg - Medium" },
+      { num: 7,  file: "print_07.png", label: "Vintage - Stucki - Medium" },
+      { num: 8,  file: "print_08.png", label: "Vintage - Atkinson - Medium" },
+      { num: 9,  file: "print_09.png", label: "High Contrast - Stucki - Medium" },
+      { num: 10, file: "print_10.png", label: "Standard BW - Newspaper - Medium" },
+      { num: 11, file: "print_11.png", label: "Vintage - Newspaper - Medium" },
+      { num: 12, file: "print_12.png", label: "Standard BW - Stucki - High" },
+    ];
+
+    function getServer() {
+      return document.getElementById("serverUrl").value.replace(/\/+$/, "");
+    }
+
+    async function testConnection() {
+      const el = document.getElementById("serverStatus");
+      el.className = "status";
+      el.textContent = "Testing...";
+      try {
+        const r = await fetch(getServer() + "/api/status", { signal: AbortSignal.timeout(5000) });
+        const d = await r.json();
+        el.className = "status ok";
+        el.textContent = "Connected! Printer: " + (d.printer ? "Ready" : "Not detected");
+      } catch (e) {
+        el.className = "status err";
+        el.textContent = "Failed: " + e.message;
+      }
+    }
+
+    async function sendPrint(num) {
+      const combo = COMBOS.find(c => c.num === num);
+      const btn = document.getElementById("btn-" + num);
+      btn.disabled = true;
+      btn.textContent = "Sending...";
+
+      try {
+        // Fetch the image file
+        const imgResp = await fetch("/" + combo.file);
+        const blob = await imgResp.blob();
+
+        // Send to printer
+        const form = new FormData();
+        form.append("file", blob, combo.file);
+
+        const resp = await fetch(getServer() + "/api/print/image", {
+          method: "POST",
+          body: form,
+        });
+        const data = await resp.json();
+
+        if (resp.ok) {
+          btn.textContent = "Printed!";
+          btn.className = "btn-print success";
+        } else {
+          btn.textContent = "Error";
+          btn.className = "btn-print error";
+          console.error(data);
+        }
+      } catch (e) {
+        btn.textContent = "Failed";
+        btn.className = "btn-print error";
+        console.error(e);
+      }
+
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.textContent = "Print";
+        btn.className = "btn-print";
+      }, 3000);
+    }
+
+    async function printAll() {
+      for (const combo of COMBOS) {
+        await sendPrint(combo.num);
+        // Wait between prints for the printer to finish
+        await new Promise(r => setTimeout(r, 8000));
+      }
+    }
+
+    // Build grid
+    const grid = document.getElementById("grid");
+    for (const combo of COMBOS) {
+      grid.innerHTML += `
+        <div class="card">
+          <img src="/${combo.file}" alt="#${combo.num}" loading="lazy" />
+          <div class="card-footer">
+            <span class="card-num">#${String(combo.num).padStart(2, "0")}</span>
+            <span class="card-label">${combo.label}</span>
+            <button class="btn-print" id="btn-${combo.num}" onclick="sendPrint(${combo.num})">Print</button>
+          </div>
+        </div>`;
+    }
+  </script>
+</body>
+</html>

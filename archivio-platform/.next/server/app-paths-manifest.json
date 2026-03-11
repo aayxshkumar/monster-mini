@@ -1,0 +1,20 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/cafes/[id]/members/route": "app/api/cafes/[id]/members/route.js",
+  "/api/cafes/[id]/route": "app/api/cafes/[id]/route.js",
+  "/api/auth/callback/route": "app/api/auth/callback/route.js",
+  "/api/cafes/[id]/members/[memberId]/route": "app/api/cafes/[id]/members/[memberId]/route.js",
+  "/api/cafes/route": "app/api/cafes/route.js",
+  "/api/health/route": "app/api/health/route.js",
+  "/api/config/[cafeId]/route": "app/api/config/[cafeId]/route.js",
+  "/api/templates/[id]/route": "app/api/templates/[id]/route.js",
+  "/api/templates/route": "app/api/templates/route.js",
+  "/login/page": "app/login/page.js",
+  "/page": "app/page.js",
+  "/booth/[slug]/page": "app/booth/[slug]/page.js",
+  "/admin/audit/page": "app/admin/audit/page.js",
+  "/admin/cafes/[id]/page": "app/admin/cafes/[id]/page.js",
+  "/admin/cafes/page": "app/admin/cafes/page.js",
+  "/admin/page": "app/admin/page.js",
+  "/admin/settings/page": "app/admin/settings/page.js"
+}

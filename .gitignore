@@ -1,0 +1,6 @@
+# Optional Pi SSH password (used by sync-to-pi.sh when SSH keys are not set up)
+ai-hedge-fund
+
+# Dependencies
+node_modules/
+**/node_modules/

@@ -1,0 +1,86 @@
+2026-02-21 19:25:33,087 [INFO] Database initialized
+2026-02-21 19:25:33,095 [INFO] YOU MEE Photo Booth Server v2.1
+2026-02-21 19:25:33,095 [INFO] Uploads: /Users/aayushkumar/Desktop/Photobooth-Related/youmee-server/uploads | Stickers: /Users/aayushkumar/Desktop/Photobooth-Related/youmee-server/stickers
+2026-02-21 19:25:33,095 [INFO] Printer: /dev/usb/lp0 (NOT FOUND)
+2026-02-21 19:25:33,096 [INFO] Pi camera: picamera2 not installed or not available (Pi only). No module named 'picamera2'
+2026-02-21 19:25:33,096 [INFO] Camera: not detected
+2026-02-21 19:25:33,096 [INFO] Print queue: background worker started
+2026-02-21 19:25:38,811 [INFO] Database initialized
+2026-02-21 19:25:38,816 [INFO] YOU MEE Photo Booth Server v2.1
+2026-02-21 19:25:38,816 [INFO] Uploads: /Users/aayushkumar/Desktop/Photobooth-Related/youmee-server/uploads | Stickers: /Users/aayushkumar/Desktop/Photobooth-Related/youmee-server/stickers
+2026-02-21 19:25:38,816 [INFO] Printer: /dev/usb/lp0 (NOT FOUND)
+2026-02-21 19:25:38,817 [INFO] Pi camera: picamera2 not installed or not available (Pi only). No module named 'picamera2'
+2026-02-21 19:25:38,817 [INFO] Camera: not detected
+2026-02-21 19:25:38,817 [INFO] Print queue: background worker started
+2026-02-21 19:25:42,885 [INFO] Database initialized
+2026-02-21 19:25:42,889 [INFO] YOU MEE Photo Booth Server v2.1
+2026-02-21 19:25:42,889 [INFO] Uploads: /Users/aayushkumar/Desktop/Photobooth-Related/youmee-server/uploads | Stickers: /Users/aayushkumar/Desktop/Photobooth-Related/youmee-server/stickers
+2026-02-21 19:25:42,889 [INFO] Printer: /dev/usb/lp0 (NOT FOUND)
+2026-02-21 19:25:42,889 [INFO] Pi camera: picamera2 not installed or not available (Pi only). No module named 'picamera2'
+2026-02-21 19:25:42,890 [INFO] Camera: not detected
+2026-02-21 19:25:42,890 [INFO] Print queue: background worker started
+2026-02-21 19:32:08,956 [INFO] Database initialized
+2026-02-21 19:32:08,961 [INFO] YOU MEE Photo Booth Server v2.1
+2026-02-21 19:32:08,961 [INFO] Uploads: /Users/aayushkumar/Desktop/Photobooth-Related/youmee-server/uploads | Stickers: /Users/aayushkumar/Desktop/Photobooth-Related/youmee-server/stickers
+2026-02-21 19:32:08,961 [INFO] Printer: /dev/usb/lp0 (NOT FOUND)
+2026-02-21 19:32:08,961 [INFO] Pi camera: picamera2 not installed or not available (Pi only). No module named 'picamera2'
+2026-02-21 19:32:08,961 [INFO] Camera: not detected
+2026-02-21 19:32:08,961 [INFO] Print queue: background worker started
+2026-02-21 19:33:41,616 [INFO] Database initialized
+2026-02-21 19:33:41,621 [INFO] YOU MEE Photo Booth Server v2.1
+2026-02-21 19:33:41,621 [INFO] Uploads: /Users/aayushkumar/Desktop/Photobooth-Related/youmee-server/uploads | Stickers: /Users/aayushkumar/Desktop/Photobooth-Related/youmee-server/stickers
+2026-02-21 19:33:41,621 [INFO] Printer: /dev/usb/lp0 (NOT FOUND)
+2026-02-21 19:33:41,621 [INFO] Pi camera: picamera2 not installed or not available (Pi only). No module named 'picamera2'
+2026-02-21 19:33:41,621 [INFO] Camera: not detected
+2026-02-21 19:33:41,621 [INFO] Print queue: background worker started
+2026-02-21 19:34:33,617 [INFO] Pi camera: picamera2 not installed or not available (Pi only). No module named 'picamera2'
+2026-02-21 19:34:42,086 [INFO] Pi camera: picamera2 not installed or not available (Pi only). No module named 'picamera2'
+2026-02-22 09:47:34,144 [INFO] Database initialized
+2026-02-22 09:47:34,157 [INFO] YOU MEE Photo Booth Server v2.1
+2026-02-22 09:47:34,158 [INFO] Uploads: /Users/aayushkumar/Desktop/Photobooth-Related/youmee-server/uploads | Stickers: /Users/aayushkumar/Desktop/Photobooth-Related/youmee-server/stickers
+2026-02-22 09:47:34,158 [INFO] Printer: /dev/usb/lp0 (NOT FOUND)
+2026-02-22 09:47:34,160 [INFO] Pi camera: picamera2 not installed or not available (Pi only). No module named 'picamera2'
+2026-02-22 09:47:34,161 [INFO] Camera: not detected
+2026-02-22 09:47:34,161 [INFO] Print queue: background worker started
+2026-02-22 09:48:43,052 [INFO] Pi camera: picamera2 not installed or not available (Pi only). No module named 'picamera2'
+2026-02-22 10:18:03,636 [INFO] Pi camera: picamera2 not installed or not available (Pi only). No module named 'picamera2'
+2026-02-22 10:18:26,550 [INFO] Database initialized
+2026-02-22 10:18:26,555 [INFO] YOU MEE Photo Booth Server v2.1
+2026-02-22 10:18:26,556 [INFO] Uploads: /Users/aayushkumar/Desktop/Photobooth-Related/youmee-server/uploads | Stickers: /Users/aayushkumar/Desktop/Photobooth-Related/youmee-server/stickers
+2026-02-22 10:18:26,651 [INFO] Printer: no raw device or CUPS
+2026-02-22 10:18:26,652 [INFO] Pi camera: picamera2 not installed or not available (Pi only). No module named 'picamera2'
+2026-02-22 10:18:26,652 [INFO] Camera: not detected
+2026-02-22 10:18:26,652 [INFO] Print queue: background worker started
+2026-02-22 10:18:31,301 [INFO] Pi camera: picamera2 not installed or not available (Pi only). No module named 'picamera2'
+2026-02-27 17:04:26,545 [INFO] Database initialized
+2026-02-27 17:04:26,556 [INFO] ARCHIVIO Photo Booth Server v2.1
+2026-02-27 17:04:26,556 [INFO] Uploads: /Users/aayushkumar/Desktop/Photobooth-Related/archivio-server/uploads | Stickers: /Users/aayushkumar/Desktop/Photobooth-Related/archivio-server/stickers
+2026-02-27 17:04:26,814 [INFO] Printer: no raw device or CUPS
+2026-02-27 17:04:26,815 [INFO] Pi camera: picamera2 not installed or not available (Pi only). No module named 'picamera2'
+2026-02-27 17:04:26,815 [INFO] Camera: not detected
+2026-02-27 17:04:26,815 [INFO] Print queue: background worker started
+2026-02-27 17:04:37,116 [INFO] Pi camera: picamera2 not installed or not available (Pi only). No module named 'picamera2'
+2026-02-27 17:04:49,856 [DEBUG] Print/Image: algo=atkinson contrast=1.4 brightness=1.05
+2026-02-27 17:04:49,883 [INFO] Queue: image job job_22ccb374 enqueued
+2026-02-27 17:04:52,768 [DEBUG] Print/Image: algo=atkinson contrast=1.4 brightness=1.05
+2026-02-27 17:04:52,791 [INFO] Queue: image job job_39829fdb enqueued
+2026-02-27 17:04:55,414 [DEBUG] Print/Image: algo=atkinson contrast=1.4 brightness=1.05
+2026-02-27 17:04:55,422 [INFO] Queue: image job job_a57797c8 enqueued
+2026-02-27 17:04:58,043 [DEBUG] Print/Image: algo=atkinson contrast=1.4 brightness=1.05
+2026-02-27 17:04:58,061 [INFO] Queue: image job job_4370b15a enqueued
+2026-02-27 17:05:00,873 [DEBUG] Print/Image: algo=atkinson contrast=1.4 brightness=1.05
+2026-02-27 17:05:00,885 [INFO] Queue: image job job_39936fc4 enqueued
+2026-02-27 17:05:03,540 [DEBUG] Print/Image: algo=atkinson contrast=1.4 brightness=1.05
+2026-02-27 17:05:03,568 [INFO] Queue: image job job_38af2eb3 enqueued
+2026-02-27 17:05:06,287 [DEBUG] Print/Image: algo=atkinson contrast=1.4 brightness=1.05
+2026-02-27 17:05:06,300 [INFO] Queue: image job job_d4a6b775 enqueued
+2026-02-27 17:05:09,360 [DEBUG] Print/Image: algo=atkinson contrast=1.4 brightness=1.05
+2026-02-27 17:05:09,384 [INFO] Queue: image job job_55307947 enqueued
+2026-02-27 17:05:12,105 [DEBUG] Print/Image: algo=atkinson contrast=1.4 brightness=1.05
+2026-02-27 17:05:12,112 [INFO] Queue: image job job_00043b37 enqueued
+2026-02-27 17:05:14,791 [DEBUG] Print/Image: algo=atkinson contrast=1.4 brightness=1.05
+2026-02-27 17:05:14,799 [INFO] Queue: image job job_adc2db83 enqueued
+2026-02-27 17:05:17,497 [DEBUG] Print/Image: algo=atkinson contrast=1.4 brightness=1.05
+2026-02-27 17:05:17,509 [INFO] Queue: image job job_8dfab26a enqueued
+2026-02-27 17:05:20,152 [DEBUG] Print/Image: algo=atkinson contrast=1.4 brightness=1.05
+2026-02-27 17:05:20,165 [INFO] Queue: image job job_013a4f8a enqueued
